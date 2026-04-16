@@ -90,6 +90,9 @@ resource "azurerm_linux_web_app" "main" {
     MONGO_URI                           = var.mongo_uri
     JWT_SECRET                          = var.jwt_secret
     JWT_EXPIRES_IN                      = var.jwt_expires_in
+    # Só envia ALLOWED_ORIGIN quando configurado; string vazia omite a variável
+    # evitando falha na validação Zod (z.string().url() rejeita string vazia).
+    ALLOWED_ORIGIN                      = var.allowed_origin != "" ? var.allowed_origin : null
     WEBSITES_ENABLE_APP_SERVICE_STORAGE = "false"
   }
 }
