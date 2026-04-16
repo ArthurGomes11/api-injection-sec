@@ -56,3 +56,9 @@ variable "jwt_expires_in" {
   type        = string
   default     = "1d"
 }
+
+variable "allowed_origin" {
+  description = "Origem permitida nas requisicoes CORS em producao (ex: https://meusite.com). Deixe vazio para bloquear CORS externo."
+  type        = string
+  default     = ""
+}

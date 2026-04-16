@@ -39,18 +39,14 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
 
 
 
-// FORMA VULNERÁVEL (Atual):
-// Sem o middleware de validação, a base de dados aceita Objetos JSON com 
-// operadores do MongoDB (ex: { "$ne": null }), permitindo o bypass do login.
-router.post('/login', async (req, res) => { 
-
-// FORMA SEGURA:
-// Reativar o middleware 'validateBody(loginSchema)'. 
-// O Zod garante que 'email' e 'password' sejam estritamente Strings, 
-// rejeitando a requisição imediatamente se o atacante enviar um Objeto JSON.
-//
-// Código correto:
-// router.post('/login', validateBody(loginSchema), async (req, res) => {
+// [SEGURANÇA] OWASP A03 – NoSQL Injection
+// Sem este middleware, a rota aceitaria qualquer JSON, incluindo objetos com
+// operadores MongoDB: { "email": { "$ne": null }, "password": { "$ne": null } }.
+// O findOne({ email: {"$ne": null} }) retornaria o primeiro usuário do banco,
+// concedendo acesso sem conhecer nenhuma credencial válida.
+// O validateBody(loginSchema) usa o Zod para garantir que 'email' e 'password'
+// sejam estritamente do tipo string, rejeitando objetos antes de tocar o banco.
+router.post('/login', validateBody(loginSchema), async (req, res) => {
 
   const { email, password } = req.body;
 
